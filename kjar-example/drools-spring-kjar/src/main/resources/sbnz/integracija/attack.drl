@@ -1,0 +1,112 @@
+package sbnz.integracija
+
+import java.util.Random;
+import sbnz.integracija.example.facts.Troop;
+import sbnz.integracija.example.facts.Position;
+import sbnz.integracija.example.facts.PossibleAttack;
+import sbnz.integracija.example.facts.Attack;
+
+global sbnz.integracija.example.facts.Attack globalAttack;
+
+rule "set retaliation"
+	salience 100
+	agenda-group "attack"
+	lock-on-active
+	when
+		$a : Attack()	
+	then
+		Random rand = new Random();
+        int rand_int1 = rand.nextInt(2);
+        modify($a){setRet(rand_int1)};
+        System.out.println("Random: " + rand_int1);
+end
+
+rule "Attack with retaliation"
+	agenda-group "attack"
+	no-loop
+	when
+		$a : Attack($attacker : attack.getAttacker(), $victim : attack.getVictim())
+	then
+		modify($a){setFlag(true)};
+		kcontext.getKnowledgeRuntime().getAgenda().getAgendaGroup("basedamage").setFocus();		
+end	
+
+rule "Calculate base damage for <= 10"
+	agenda-group "basedamage"
+	when
+		$a : Attack(flag == true, $attacker : attack.getAttacker(), $attacker.getAmount() <= 10);//drools.getKnowledgeRuntime().getGlobal("attack");		
+	then
+		modify($a){setBaseDamage($attacker.getAmount() * $attacker.getCreature().getAtt() * $attacker.getAmount()/10)};
+		System.out.println("Base damage: " +  $attacker.getAmount() + "   " + $a.getBaseDamage());
+		kcontext.getKnowledgeRuntime().getAgenda().getAgendaGroup("attack ret").setFocus();		
+		
+end
+
+rule "Attack"
+	agenda-group "attack ret"
+	when
+		$a : Attack(flag == true, $attacker : attack.getAttacker(), $victim : attack.getVictim());
+	then
+		int hp = $victim.getCreature().getHp() * $victim.getAmount()-$a.getBaseDamage();
+		System.out.println("HP: " + hp);
+		int killedCreatures = ($victim.getCreature().getHp()*$victim.getAmount() - hp) / $victim.getCreature().getHp();
+		System.out.println("KILLED CREATURES: " + killedCreatures);
+		int leftCreatures = $victim.getAmount()-killedCreatures;
+		System.out.println("LEFT CREATURES " + leftCreatures);
+		//$victim.getCreature().setHp(hp);
+		if (leftCreatures > 0 && hp > 0){
+			System.out.println("Pre ih je bilo: " + $victim.getAmount());
+			modify($victim){setAmount(leftCreatures)};
+			System.out.println("Ostalo ih je: " + $victim.getAmount());
+			System.out.println("Pomeren sa pozicije: " + $attacker.getCurrentPositionX() + $attacker.getCurrentPositionY());
+			modify($attacker){setCurrentPosition($a.getAttack().getMovePosition())};
+			System.out.println("Na poziciju: " + $attacker.getCurrentPositionX() + $attacker.getCurrentPositionY());
+			if ($a.getRet() == 1){
+				kcontext.getKnowledgeRuntime().getAgenda().getAgendaGroup("retaliation base damage").setFocus();		
+			}
+			else {
+				delete($a);
+			}
+		}
+		else{
+			System.out.println("Pre ih je bilo: " + $victim.getAmount());
+			System.out.println("HP skinuto: " + hp);
+			System.out.println("Ubijeno je: " + killedCreatures);
+			delete($a);
+			delete($victim);
+		}
+end
+
+rule "Retaliation damage"
+	agenda-group "retaliation base damage"
+	no-loop
+	when
+		$a : Attack(flag == true, $attacker : attack.getAttacker(), $victim : attack.getVictim());
+	then
+		modify($a){setBaseDamage($victim.getAmount() * $victim.getCreature().getAtt() * $victim.getAmount()/10)};
+		System.out.println("Base damage za retaliation je: " + $a.getBaseDamage());
+		kcontext.getKnowledgeRuntime().getAgenda().getAgendaGroup("retaliation").setFocus();		
+end
+
+rule "Retaliation"
+	agenda-group "retaliation"
+	when
+		$a : Attack(flag == true, $attacker : attack.getAttacker(), $victim : attack.getVictim(), attack.isRange() == false);
+	then
+		int hp = $attacker.getCreature().getHp() * $attacker.getAmount()-$a.getBaseDamage();
+		System.out.println("HP: " + hp);
+		int killedCreatures = ($attacker.getCreature().getHp()*$attacker.getAmount() - hp) / $attacker.getCreature().getHp();
+		int leftCreatures = $attacker.getAmount()-killedCreatures;
+		System.out.println("KILLED CREATURES: " + killedCreatures);
+		System.out.println("LEFT CREATURES " + leftCreatures);
+		if (leftCreatures > 0 && hp > 0){
+			System.out.println("Pre ih je bilo ret: " + $attacker.getAmount());
+			modify($attacker){setAmount(leftCreatures)};
+			System.out.println("Ostalo ih je ret: " + $attacker.getAmount());
+			delete($a);
+		}
+		else{
+			delete($a);
+			delete($victim);
+		}
+end

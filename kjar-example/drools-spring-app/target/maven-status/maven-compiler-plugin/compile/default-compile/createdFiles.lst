@@ -1,0 +1,11 @@
+sbnz\integracija\example\facts\Position.class
+sbnz\integracija\example\SampleApp.class
+sbnz\integracija\example\facts\PossibleAttack.class
+sbnz\integracija\example\facts\Troop.class
+sbnz\integracija\example\facts\Spell.class
+sbnz\integracija\example\SampleAppService.class
+sbnz\integracija\example\facts\Creature.class
+sbnz\integracija\example\SampleAppController.class
+sbnz\integracija\example\facts\Hero.class
+sbnz\integracija\example\SampleHomeController.class
+sbnz\integracija\example\facts\Spell$SpellType.class

@@ -1,0 +1,111 @@
+//created on: 23 May 2022
+package sbnz.integracija
+
+//list any import classes here.
+import sbnz.integracija.example.facts.Troop;
+import sbnz.integracija.example.facts.Position;
+import sbnz.integracija.example.facts.PossibleAttack;
+import sbnz.integracija.example.facts.Attack;
+import java.util.List;
+global java.util.Random randomInteger;
+import java.lang.Math;
+
+//declare any global variables here
+
+rule "Find Possible Attacks"
+	salience 10
+	lock-on-active
+	agenda-group "movement"
+    when
+        $t : Troop(isEnemy == true, $tAv : availablePositions, creature.getisShooter() == false)
+        $p : Position() from $tAv
+        $et : Troop(isEnemy == false, currentPosition.getPosX() == $p.getPosX(), currentPosition.getPosY() == $p.getPosY())//, currentPosition memberOf  $tAv)
+    then
+       	System.out.println("-------------------");
+        System.out.println("Pronadjen: " + $t.getCreature().getName());
+        System.out.println("Pozicije: " + $p.getPosX() + $p.getPosY());
+        System.out.println("Pronadjen2: " + $et.getCreature().getName()); 
+        System.out.println("Moguca pozicija: " + $t.positionForAttack($t.getAvailablePositions(), $p).getPosX() + $t.positionForAttack($t.getAvailablePositions(), $p).getPosY());
+        insert(new PossibleAttack($t, $et, $p, new Position($t.positionForAttack($t.getAvailablePositions(), $p).getPosX(), $t.positionForAttack($t.getAvailablePositions(), $p).getPosY()) ,false, false));
+end
+
+
+
+rule "No Possible Attacks"
+	salience 9
+	no-loop
+	agenda-group "movement"
+	when
+		$t : Troop(isEnemy == true, $ap : availablePositions, creature.getisShooter() == false)
+		not (PossibleAttack(attacker == $t))
+	then
+		modify($t){setCurrentPosition($t.getClosestEnemy());}
+		System.out.println("Modifikovan! " + $t.getCreature().getName() + "Pozicija: " + $t.getCurrentPositionX() + $t.getCurrentPositionY());
+end
+		
+rule "Shooter vs shooter"
+	salience 8
+	lock-on-active
+	agenda-group "movement"
+	when
+		$t : Troop(isEnemy == true, creature.getisShooter() == true)
+		not (PossibleAttack(attacker == $t))
+		$a : Troop(isEnemy == false, creature.getisShooter() == true)
+	then
+		insert(new PossibleAttack($t, $a, null, $t.getCurrentPosition(), false, true));
+		System.out.println("Shooter pronadjen: " + $t.getCreature().getName());
+		System.out.println("Shooter puca shootera: " + $a.getCreature().getName());
+end
+
+rule "Shooter vs Melee"
+	salience 7
+	lock-on-active
+	agenda-group "movement"
+	when
+		$t : Troop(isEnemy == true, creature.getisShooter() == true)
+		not (PossibleAttack(attacker == $t))
+		$a : Troop(isEnemy == false)
+	then
+		insert(new PossibleAttack($t, $a, null, $t.getCurrentPosition(), false, true));
+		System.out.println("Shooter pronadjen: " + $t.getCreature().getName());
+		System.out.println("Shooter ne puca shootera: " + $a.getCreature().getName());
+end
+
+rule "Find Closest Enemy"
+	no-loop
+	agenda-group "movement"
+    when
+    	//$en : Troop(isEnemy == true)
+    	
+    	PossibleAttack($en : attacker);
+    	not(Attack(attack.getAttacker() == $en));
+        $pa : Attack() from accumulate( 
+        	$pos : PossibleAttack( $a : attacker == $en, $v : victim),
+        	//Attack($p : attack),
+        	init (int res = 0; int i=0; Attack att = new Attack();),
+        	action(
+        		int x = $v.getCreature().getDef();
+        		if (i==0){
+        			res = x;
+        		}
+        		if (x <= res){
+	        		res = x;
+	        		att.setAttack($pos);
+        	} i++; ),
+        	result(att)
+         	)
+    then
+        System.out.println("-------------------");
+        insert($pa);
+        System.out.println("Izabrana je: "  + $pa.getAttack().getAttacker().getCreature().getName() + $pa.getAttack().getVictim().getCreature().getName() );
+		//delete($en);
+end
+
+rule "Activate attack"
+	salience -100
+	agenda-group "movement"
+	when
+	then
+		kcontext.getKnowledgeRuntime().getAgenda().getAgendaGroup("attack").setFocus(); 
+end
+	
